@@ -61,10 +61,13 @@ button:focus-visible{outline:3px solid var(--text);outline-offset:2px}
 <div id="mp">
   <b>Música en línea</b>
   <div id="st" style="display:flex;flex-direction:column;gap:6px"></div>
-  <input type="text" id="cu" placeholder="Pega un enlace de audio o radio (https://…)">
+  <div class="row"><button id="fb" class="s">Elegir archivos</button><button id="pv" class="s" aria-label="Anterior">⏮</button><button id="nx" class="s" aria-label="Siguiente">⏭</button></div>
+  <input type="file" id="ff" accept="audio/*" multiple hidden>
+  <input type="text" id="cu" placeholder="Pega un enlace de YouTube, Spotify, radio o mp3">
   <div class="row"><button id="pc" class="s">Reproducir enlace</button><button id="ps" class="s">Pausar</button></div>
   <div class="row"><span>Volumen</span><input type="range" id="vol" min="0" max="1" step="0.05" value="0.6" style="flex:1"></div>
   <label class="row"><input type="checkbox" id="sx" checked> Efectos de sonido y vibración</label>
+  <iframe id="yt" allow="autoplay; encrypted-media" referrerpolicy="strict-origin-when-cross-origin" style="display:none;width:100%;height:200px;border:0;border-radius:12px"></iframe>
   <div id="now">Elige una estación para escuchar mientras juegas.</div>
   <button id="mc">Cerrar</button>
 </div>
@@ -194,10 +197,41 @@ function vib(n){if(!$('sx').checked)return;try{navigator.vibrate&&navigator.vibr
 function toast(t){const f=$('fx');f.textContent=t;f.classList.remove('on');void f.offsetWidth;f.classList.add('on')}
 const ST=[['Groove Salad · chill','https://ice1.somafm.com/groovesalad-128-mp3'],['Beat Blender · electrónica','https://ice1.somafm.com/beatblender-128-mp3'],['Lush · suave','https://ice1.somafm.com/lush-128-mp3'],['Space Station · espacial','https://ice1.somafm.com/spacestation-128-mp3'],['Secret Agent · lounge','https://ice1.somafm.com/secretagent-128-mp3'],['Drone Zone · ambiental','https://ice1.somafm.com/dronezone-128-mp3']];
 const aud=$('aud');
-function playUrl(u,n){aud.src=u;aud.volume=+$('vol').value;aud.play().then(()=>$('now').textContent='Sonando: '+n).catch(()=>$('now').textContent='No se pudo reproducir. Revisa tu conexión o el enlace.')}
+function playUrl(u,n){local=false;$('yt').src='';$('yt').style.display='none';aud.src=u;aud.volume=+$('vol').value;aud.play().then(()=>$('now').textContent='Sonando: '+n).catch(()=>$('now').textContent='No se pudo reproducir. Revisa tu conexión o el enlace.')}
 ST.forEach(([n,u])=>{const b=document.createElement('button');b.className='s';b.textContent=n;b.onclick=()=>playUrl(u,n);$('st').appendChild(b)});
-$('pc').onclick=()=>{const u=$('cu').value.trim();if(u)playUrl(u,'tu enlace')};
-$('ps').onclick=()=>{aud.pause();$('now').textContent='Música en pausa.'};
+let pl=[],pi=0,local=false;
+function playLocal(i){
+  if(!pl.length)return;
+  pi=(i+pl.length)%pl.length;local=true;
+  $('yt').src='';$('yt').style.display='none';
+  aud.src=pl[pi].u;aud.volume=+$('vol').value;
+  aud.play().then(()=>$('now').textContent='Sonando: '+pl[pi].n+' ('+(pi+1)+'/'+pl.length+')').catch(()=>$('now').textContent='No se pudo reproducir ese archivo.')
+}
+$('fb').onclick=()=>$('ff').click();
+$('ff').onchange=e=>{
+  pl.forEach(t=>URL.revokeObjectURL(t.u));
+  pl=[...e.target.files].map(f=>({n:f.name.replace(/\.[^.]+$/,''),u:URL.createObjectURL(f)}));
+  if(pl.length)playLocal(0)
+};
+$('pv').onclick=()=>{if(local)playLocal(pi-1)};
+$('nx').onclick=()=>{if(local)playLocal(pi+1)};
+aud.onended=()=>{if(local)playLocal(pi+1)};
+function embedOf(u){
+  let m;
+  if(/youtu/.test(u)){
+    if(m=u.match(/[?&]list=([\w-]+)/))return 'https://www.youtube.com/embed/videoseries?list='+m[1]+'&autoplay=1&playsinline=1';
+    if(m=u.match(/(?:youtu\.be\/|v=|shorts\/|embed\/)([\w-]{11})/))return 'https://www.youtube.com/embed/'+m[1]+'?autoplay=1&playsinline=1';
+  }
+  if(m=u.match(/open\.spotify\.com\/(?:intl-\w+\/)?(track|playlist|album|episode)\/(\w+)/))return 'https://open.spotify.com/embed/'+m[1]+'/'+m[2];
+  return '';
+}
+$('pc').onclick=()=>{
+  const u=$('cu').value.trim();if(!u)return;
+  const e=embedOf(u),f=$('yt');
+  if(e){local=false;aud.pause();f.style.display='block';f.src=e;$('now').textContent='Usando el reproductor de YouTube/Spotify. Dale play dentro si no arranca.'}
+  else playUrl(u,'tu enlace')
+};
+$('ps').onclick=()=>{aud.pause();$('yt').src='';$('yt').style.display='none';$('now').textContent='Música en pausa.'};
 $('vol').oninput=e=>aud.volume=+e.target.value;
 $('mb').onclick=()=>$('mp').style.display='flex';
 $('mc').onclick=()=>$('mp').style.display='none';
@@ -208,4 +242,4 @@ $('again').onclick=reset;
 reset();
 </script>
 </body>
-  </html>
+</html>
